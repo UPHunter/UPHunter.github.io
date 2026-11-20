@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Time Tracker</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2332;
+      --border: #2d3a4f;
+      --text: #e7ecf3;
+      --muted: #8b9bb4;
+      --accent: #3d9cf0;
+      --green: #3ecf8e;
+      --red: #e85d5d;
+      --amber: #f0b429;
+      --edit: rgba(61, 156, 240, 0.16);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 24px 16px 48px;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    h1 {
+      font-size: 1.35rem;
+      font-weight: 650;
+      margin: 0 0 16px;
+      letter-spacing: -0.02em;
+    }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+    .clock-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .clock {
+      font-size: 2.4rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+    }
+    .tenths-badge {
+      background: rgba(61, 156, 240, 0.16);
+      color: var(--accent);
+      border: 1px solid rgba(61, 156, 240, 0.35);
+      border-radius: 999px;
+      padding: 8px 16px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-size: 1.05rem;
+    }
+    .tenths-badge small {
+      display: block;
+      font-weight: 500;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 2px;
+    }
+    .status {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .status.active { color: var(--green); }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 2fr auto auto;
+      gap: 10px;
+      align-items: end;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 600;
+      letter-spacing: 0.02em;
+    }
+    select, input[type="text"], input[type="time"] {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+      width: 100%;
+    }
+    select:focus, input:focus {
+      outline: 2px solid rgba(61, 156, 240, 0.45);
+      border-color: var(--accent);
+    }
+    button {
+      font: inherit;
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-weight: 650;
+    }
+    button:disabled { opacity: 0.45; cursor: not-allowed; }
+    .btn-start { background: var(--green); color: #0f1419; }
+    .btn-stop { background: var(--red); color: #fff; }
+    .btn-add { background: var(--accent); color: #0f1419; }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-link {
+      background: transparent;
+      color: var(--accent);
+      padding: 4px 8px;
+    }
+    .btn-danger {
+      background: transparent;
+      color: var(--red);
+      padding: 4px 8px;
+    }
+    .code-add {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .code-add input { flex: 1; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 5px 8px 5px 12px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .chip button {
+      background: transparent;
+      color: var(--muted);
+      padding: 0 4px;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .chip button:hover { color: var(--red); }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    th {
+      text-align: left;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 650;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      padding: 0 10px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    td {
+      padding: 12px 10px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr.editing { background: var(--edit); }
+    .table-wrap { overflow-x: auto; }
+    .empty {
+      text-align: center;
+      color: var(--muted);
+      padding: 36px 12px;
+    }
+    .pill {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #0f1419;
+    }
+    .edit-form {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      padding-top: 4px;
+    }
+    .edit-form .full { grid-column: 1 / -1; }
+    .edit-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .section-title {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 650;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin: 0 0 12px;
+    }
+    .section-title span {
+      display: block;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 500;
+      margin-top: 4px;
+      font-size: 0.85rem;
+    }
+    .hours { font-variant-numeric: tabular-nums; }
+    .muted { color: var(--muted); }
+    .totals-list { display: grid; gap: 10px; }
+    .total-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .total-bar {
+      flex: 1;
+      height: 8px;
+      background: var(--bg);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .total-bar > span { display: block; height: 100%; border-radius: 999px; }
+    .grand {
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      font-weight: 700;
+    }
+    @media (max-width: 640px) {
+      .clock { font-size: 1.8rem; }
+      .controls { grid-template-columns: 1fr; }
+      .edit-form { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Time Tracker</h1>
+
+    <section class="panel">
+      <div class="clock-row">
+        <div class="clock" id="clock">--:--:--</div>
+        <div class="tenths-badge">
+          <small>Current tenth</small>
+          <span id="currentTenth">0.0</span>
+        </div>
+      </div>
+      <div class="status" id="status">No block running.</div>
+    </section>
+
+    <section class="panel">
+      <div class="controls">
+        <label>Charge code
+          <select id="codeSelect"></select>
+        </label>
+        <label>Notes
+          <input type="text" id="notesInput" placeholder="Optional notes for this block" />
+        </label>
+        <button class="btn-start" id="startBtn" type="button">Start</button>
+        <button class="btn-stop" id="stopBtn" type="button">Stop</button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <label style="margin-bottom: 8px;">Charge codes</label>
+      <div class="code-add">
+        <input type="text" id="newCode" placeholder="Add a charge code" />
+        <button class="btn-add" id="addCodeBtn" type="button">Add</button>
+      </div>
+      <div class="chips" id="chips"></div>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">Line items
+        <span>Each start/stop block is saved as its own row. Matching charge codes are not combined here.</span>
+      </h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Start</th>
+              <th>End</th>
+              <th>Tenths</th>
+              <th>Hours</th>
+              <th>Code</th>
+              <th>Notes</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+      <div class="empty" id="emptyState">No time entries yet. Pick a charge code and hit Start.</div>
+    </section>
+
+    <section class="panel">
+      <h2 class="section-title">Summary
+        <span>Total hours for each charge code today</span>
+      </h2>
+      <div class="totals-list" id="totals"></div>
+    </section>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "time-tracker-v1";
+    const DEFAULT_CODES = ["ADMIN", "MEETING", "PROJECT", "TRAINING", "OTHER"];
+    const PALETTE = ["#3d9cf0", "#3ecf8e", "#f0b429", "#c084fc", "#22d3ee", "#fb7185", "#a3e635", "#818cf8", "#f97316", "#2dd4bf"];
+
+    const els = {
+      clock: document.getElementById("clock"),
+      currentTenth: document.getElementById("currentTenth"),
+      status: document.getElementById("status"),
+      codeSelect: document.getElementById("codeSelect"),
+      notesInput: document.getElementById("notesInput"),
+      startBtn: document.getElementById("startBtn"),
+      stopBtn: document.getElementById("stopBtn"),
+      newCode: document.getElementById("newCode"),
+      addCodeBtn: document.getElementById("addCodeBtn"),
+      chips: document.getElementById("chips"),
+      logBody: document.getElementById("logBody"),
+      emptyState: document.getElementById("emptyState"),
+      totals: document.getElementById("totals"),
+    };
+
+    let state = loadState();
+    let editingId = null;
+
+    function todayKey() {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    function loadState() {
+      const fallback = { date: todayKey(), codes: [...DEFAULT_CODES], entries: [], active: null };
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return fallback;
+        const data = JSON.parse(raw);
+        if (!data || typeof data !== "object") return fallback;
+        if (data.date !== todayKey()) {
+          return { date: todayKey(), codes: Array.isArray(data.codes) && data.codes.length ? data.codes : [...DEFAULT_CODES], entries: [], active: null };
+        }
+        return {
+          date: data.date,
+          codes: Array.isArray(data.codes) && data.codes.length ? data.codes : [...DEFAULT_CODES],
+          entries: Array.isArray(data.entries) ? data.entries : [],
+          active: data.active || null,
+        };
+      } catch {
+        return fallback;
+      }
+    }
+
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function colorFor(code) {
+      let h = 0;
+      for (const ch of String(code)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+      return PALETTE[h % PALETTE.length];
+    }
+
+    function tenthsBetween(start, end) {
+      const ms = Math.max(0, end - start);
+      if (ms <= 0) return 0;
+      return Math.max(1, Math.round(ms / 360000));
+    }
+
+    function currentTenthOfHour(d) {
+      return (Math.floor(d.getMinutes() / 6) / 10).toFixed(1);
+    }
+
+    function formatTime(ts) {
+      return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+
+    function formatClock(d) {
+      return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    }
+
+    function toTimeValue(ts) {
+      const d = new Date(ts);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+
+    function fromTimeValue(value) {
+      const [h, m] = value.split(":").map(Number);
+      const d = new Date();
+      d.setHours(h, m, 0, 0);
+      return d.getTime();
+    }
+
+    function uid() {
+      return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    }
+
+    function pill(code) {
+      const el = document.createElement("span");
+      el.className = "pill";
+      el.textContent = code;
+      el.style.background = colorFor(code);
+      return el;
+    }
+
+    function fillCodeSelect(selected) {
+      const current = selected ?? els.codeSelect.value;
+      els.codeSelect.innerHTML = "";
+      state.codes.forEach((code) => {
+        const opt = document.createElement("option");
+        opt.value = code;
+        opt.textContent = code;
+        els.codeSelect.appendChild(opt);
+      });
+      if (current && state.codes.includes(current)) els.codeSelect.value = current;
+    }
+
+    function renderChips() {
+      els.chips.innerHTML = "";
+      state.codes.forEach((code) => {
+        const chip = document.createElement("span");
+        chip.className = "chip";
+        const label = document.createElement("span");
+        label.textContent = code;
+        label.style.color = colorFor(code);
+        const del = document.createElement("button");
+        del.type = "button";
+        del.setAttribute("aria-label", `Delete ${code}`);
+        del.textContent = "×";
+        del.addEventListener("click", () => deleteCode(code));
+        chip.append(label, del);
+        els.chips.appendChild(chip);
+      });
+    }
+
+    function renderLog() {
+      els.logBody.innerHTML = "";
+      const entries = [...state.entries].sort((a, b) => a.start - b.start);
+      els.emptyState.style.display = entries.length ? "none" : "block";
+      entries.forEach((entry) => {
+        if (editingId === entry.id) {
+          els.logBody.appendChild(editRow(entry));
+          return;
+        }
+        const tr = document.createElement("tr");
+        const tenths = tenthsBetween(entry.start, entry.end);
+        tr.innerHTML = `
+          <td>${formatTime(entry.start)}</td>
+          <td>${formatTime(entry.end)}</td>
+          <td>${tenths}</td>
+          <td class="hours">${(tenths / 10).toFixed(1)}</td>
+          <td></td>
+          <td>${escapeHtml(entry.notes || "")}</td>
+          <td></td>`;
+        tr.children[4].appendChild(pill(entry.code));
+        const actions = document.createElement("td");
+        const editBtn = document.createElement("button");
+        editBtn.className = "btn-link";
+        editBtn.type = "button";
+        editBtn.textContent = "Edit";
+        editBtn.addEventListener("click", () => { editingId = entry.id; render(); });
+        const delBtn = document.createElement("button");
+        delBtn.className = "btn-danger";
+        delBtn.type = "button";
+        delBtn.textContent = "Delete";
+        delBtn.addEventListener("click", () => deleteEntry(entry.id));
+        actions.append(editBtn, delBtn);
+        tr.replaceChild(actions, tr.children[6]);
+        els.logBody.appendChild(tr);
+      });
+    }
+
+    function editRow(entry) {
+      const tr = document.createElement("tr");
+      tr.className = "editing";
+      const td = document.createElement("td");
+      td.colSpan = 7;
+      td.innerHTML = `
+        <div class="edit-form">
+          <label>Start time<input type="time" class="edit-start" value="${toTimeValue(entry.start)}" /></label>
+          <label>End time<input type="time" class="edit-end" value="${toTimeValue(entry.end)}" /></label>
+          <label>Charge code<select class="edit-code"></select></label>
+          <label>Notes<input type="text" class="edit-notes" value="${escapeAttr(entry.notes || "")}" /></label>
+          <label class="full">Split at (optional)
+            <input type="time" class="edit-split" />
+          </label>
+          <label class="full">Second code (used if you split)
+            <select class="edit-split-code"></select>
+          </label>
+          <div class="full edit-actions">
+            <button type="button" class="btn-add save-edit">Save</button>
+            <button type="button" class="btn-ghost cancel-edit">Cancel</button>
+          </div>
+          <div class="full muted">To split, enter a time between start and end and pick a different code for the second half.</div>
+        </div>`;
+      const codeSel = td.querySelector(".edit-code");
+      const splitSel = td.querySelector(".edit-split-code");
+      state.codes.forEach((code) => {
+        codeSel.appendChild(new Option(code, code));
+        splitSel.appendChild(new Option(code, code));
+      });
+      if (!state.codes.includes(entry.code)) codeSel.appendChild(new Option(entry.code, entry.code));
+      codeSel.value = entry.code;
+      splitSel.value = state.codes.find((c) => c !== entry.code) || entry.code;
+      td.querySelector(".save-edit").addEventListener("click", () => {
+        const start = fromTimeValue(td.querySelector(".edit-start").value);
+        const end = fromTimeValue(td.querySelector(".edit-end").value);
+        const code = codeSel.value;
+        const notes = td.querySelector(".edit-notes").value.trim();
+        const splitVal = td.querySelector(".edit-split").value;
+        if (!(start < end)) { alert("End time must be after start time."); return; }
+        if (splitVal) {
+          const split = fromTimeValue(splitVal);
+          const code2 = splitSel.value;
+          if (!(start < split && split < end)) { alert("Split time must fall between start and end."); return; }
+          if (!code2) { alert("Pick a charge code for the second block."); return; }
+          const next = state.entries.filter((e) => e.id !== entry.id);
+          next.push({ id: uid(), start, end: split, code, notes });
+          next.push({ id: uid(), start: split, end, code: code2, notes });
+          state.entries = next;
+        } else {
+          state.entries = state.entries.map((e) => e.id === entry.id ? { ...e, start, end, code, notes } : e);
+        }
+        editingId = null;
+        saveState();
+        render();
+      });
+      td.querySelector(".cancel-edit").addEventListener("click", () => { editingId = null; render(); });
+      tr.appendChild(td);
+      return tr;
+    }
+
+    function renderTotals() {
+      const map = new Map();
+      state.entries.forEach((entry) => {
+        const cur = map.get(entry.code) || { tenths: 0, count: 0 };
+        cur.tenths += tenthsBetween(entry.start, entry.end);
+        cur.count += 1;
+        map.set(entry.code, cur);
+      });
+      const rows = [...map.entries()].sort((a, b) => b[1].tenths - a[1].tenths);
+      const grand = rows.reduce((sum, [, data]) => sum + data.tenths, 0);
+      if (!rows.length) {
+        els.totals.innerHTML = `<div class="muted">No summary yet. Line items will roll up here by charge code.</div>`;
+        return;
+      }
+      els.totals.innerHTML = "";
+      rows.forEach(([code, data]) => {
+        const hours = (data.tenths / 10).toFixed(1);
+        const row = document.createElement("div");
+        row.className = "total-row";
+        const left = document.createElement("div");
+        left.appendChild(pill(code));
+        const bar = document.createElement("div");
+        bar.className = "total-bar";
+        const fill = document.createElement("span");
+        fill.style.width = `${grand ? (data.tenths / grand) * 100 : 0}%`;
+        fill.style.background = colorFor(code);
+        bar.appendChild(fill);
+        const right = document.createElement("div");
+        right.innerHTML = `<strong class="hours">${hours} hrs</strong> <span class="muted">(${data.tenths} tenths · ${data.count} line item${data.count === 1 ? "" : "s"})</span>`;
+        row.append(left, bar, right);
+        els.totals.appendChild(row);
+      });
+      const g = document.createElement("div");
+      g.className = "grand";
+      g.innerHTML = `<span>Total hours</span><span class="hours">${(grand / 10).toFixed(1)} hrs <span class="muted" style="font-weight:500">(${grand} tenths)</span></span>`;
+      els.totals.appendChild(g);
+    }
+
+    function renderStatus(now) {
+      const running = !!state.active;
+      els.startBtn.disabled = running || !state.codes.length;
+      els.stopBtn.disabled = !running;
+      if (!running) {
+        els.status.className = "status";
+        els.status.textContent = "No block running.";
+        return;
+      }
+      const tenths = tenthsBetween(state.active.start, now);
+      els.status.className = "status active";
+      els.status.textContent = `Recording ${state.active.code} since ${formatTime(state.active.start)} · ${tenths} tenth${tenths === 1 ? "" : "s"}`;
+    }
+
+    function render() {
+      fillCodeSelect();
+      renderChips();
+      renderLog();
+      renderTotals();
+      renderStatus(Date.now());
+    }
+
+    function tick() {
+      const now = new Date();
+      els.clock.textContent = formatClock(now);
+      els.currentTenth.textContent = currentTenthOfHour(now);
+      if (state.active) renderStatus(now.getTime());
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+    }
+    function escapeAttr(str) { return escapeHtml(str); }
+
+    function startBlock() {
+      if (state.active || !state.codes.length) return;
+      const code = els.codeSelect.value;
+      if (!code) { alert("Pick a charge code first."); return; }
+      state.active = { start: Date.now(), code, notes: els.notesInput.value.trim() };
+      saveState();
+      render();
+    }
+
+    function stopBlock() {
+      if (!state.active) return;
+      const end = Date.now();
+      if (end <= state.active.start) {
+        state.active = null;
+        saveState();
+        render();
+        return;
+      }
+      state.entries.push({
+        id: uid(),
+        start: state.active.start,
+        end,
+        code: state.active.code,
+        notes: state.active.notes,
+      });
+      state.active = null;
+      els.notesInput.value = "";
+      saveState();
+      render();
+    }
+
+    function addCode() {
+      const code = els.newCode.value.trim().toUpperCase();
+      if (!code) return;
+      if (state.codes.some((c) => c.toUpperCase() === code)) { alert("That charge code already exists."); return; }
+      state.codes.push(code);
+      els.newCode.value = "";
+      saveState();
+      fillCodeSelect(code);
+      render();
+    }
+
+    function deleteCode(code) {
+      if (state.active && state.active.code === code) {
+        alert("Stop the current block before deleting that charge code.");
+        return;
+      }
+      state.codes = state.codes.filter((c) => c !== code);
+      saveState();
+      render();
+    }
+
+    function deleteEntry(id) {
+      if (!confirm("Delete this time block?")) return;
+      state.entries = state.entries.filter((e) => e.id !== id);
+      if (editingId === id) editingId = null;
+      saveState();
+      render();
+    }
+
+    els.startBtn.addEventListener("click", startBlock);
+    els.stopBtn.addEventListener("click", stopBlock);
+    els.addCodeBtn.addEventListener("click", addCode);
+    els.newCode.addEventListener("keydown", (e) => { if (e.key === "Enter") addCode(); });
+
+    render();
+    tick();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>
