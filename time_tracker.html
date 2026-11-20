@@ -244,18 +244,69 @@
       justify-content: space-between;
       font-weight: 700;
     }
+    input[type="date"] {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 12px;
+      font: inherit;
+      width: 100%;
+      color-scheme: dark;
+    }
+    .export-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .export-controls label { flex: 1 1 160px; max-width: 240px; }
+    .export-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+    .export-hint { margin-top: 12px; font-size: 0.9rem; }
+    .export-fallback { margin-top: 10px; color: var(--amber); font-size: 0.9rem; }
+    .export-fallback a { color: var(--accent); font-weight: 650; }
+    .print-only { display: none; }
+    .print-period { margin: 0 0 8px; }
+    .print-only h1 { font-size: 1.4rem; margin: 0 0 4px; }
+    .print-only h2 { font-size: 1rem; margin: 18px 0 8px; }
+    .print-only td.notes { white-space: pre-wrap; }
+    .print-total td { font-weight: 700; border-top: 2px solid #111; }
     @media (max-width: 640px) {
       .clock { font-size: 1.8rem; }
       .controls { grid-template-columns: 1fr; }
       .edit-form { grid-template-columns: 1fr; }
+      .export-controls label { max-width: none; flex-basis: 100%; }
+      .export-actions { width: 100%; }
+      .export-actions button { flex: 1 1 100%; }
+    }
+    @media print {
+      body { background: #fff; color: #111; padding: 0; }
+      .panel, .no-print { display: none !important; }
+      .print-only { display: block !important; }
+      .print-only h1, .print-only h2, .print-only p,
+      .print-only th, .print-only td { color: #111; }
+      .print-only th {
+        text-transform: none;
+        letter-spacing: 0;
+        font-size: 0.8rem;
+        padding: 6px 8px;
+        border-bottom: 1px solid #111;
+      }
+      .print-only td {
+        padding: 6px 8px;
+        border-bottom: 1px solid #ccc;
+        vertical-align: top;
+      }
+      .print-only tr { break-inside: avoid; }
+      a { color: inherit; text-decoration: none; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <h1>Time Tracker</h1>
+    <h1 class="no-print">Time Tracker</h1>
 
-    <section class="panel">
+    <section class="panel no-print">
       <div class="clock-row">
         <div class="clock" id="clock">--:--:--</div>
         <div class="tenths-badge">
@@ -266,7 +317,7 @@
       <div class="status" id="status">No block running.</div>
     </section>
 
-    <section class="panel">
+    <section class="panel no-print">
       <div class="controls">
         <label>Charge code
           <select id="codeSelect"></select>
@@ -279,7 +330,7 @@
       </div>
     </section>
 
-    <section class="panel">
+    <section class="panel no-print">
       <label style="margin-bottom: 8px;">Charge codes</label>
       <div class="code-add">
         <input type="text" id="newCode" placeholder="Add a charge code" />
@@ -288,7 +339,7 @@
       <div class="chips" id="chips"></div>
     </section>
 
-    <section class="panel">
+    <section class="panel no-print">
       <h2 class="section-title">Line items
         <span>Each start/stop block is saved as its own row. Matching charge codes are not combined here.</span>
       </h2>
@@ -311,12 +362,34 @@
       <div class="empty" id="emptyState">No time entries yet. Pick a charge code and hit Start.</div>
     </section>
 
-    <section class="panel">
+    <section class="panel no-print">
       <h2 class="section-title">Summary
         <span>Total hours for each charge code today</span>
       </h2>
       <div class="totals-list" id="totals"></div>
     </section>
+
+    <section class="panel no-print">
+      <h2 class="section-title">Export
+        <span>Leave the dates blank to include every entry. From and To limit the CSV files and the printed report.</span>
+      </h2>
+      <div class="export-controls">
+        <label>From
+          <input type="date" id="exportFrom" />
+        </label>
+        <label>To
+          <input type="date" id="exportTo" />
+        </label>
+      </div>
+      <div class="export-actions">
+        <button class="btn-ghost" id="exportEntriesBtn" type="button">Export CSV (entries)</button>
+        <button class="btn-ghost" id="exportSummaryBtn" type="button">Export CSV (summary)</button>
+        <button class="btn-ghost" id="printBtn" type="button">Print</button>
+      </div>
+      <div class="export-hint muted" id="exportHint"></div>
+    </section>
+
+    <div id="printView" class="print-only"></div>
   </div>
 
   <script>
@@ -338,14 +411,25 @@
       logBody: document.getElementById("logBody"),
       emptyState: document.getElementById("emptyState"),
       totals: document.getElementById("totals"),
+      exportFrom: document.getElementById("exportFrom"),
+      exportTo: document.getElementById("exportTo"),
+      exportHint: document.getElementById("exportHint"),
+      exportEntriesBtn: document.getElementById("exportEntriesBtn"),
+      exportSummaryBtn: document.getElementById("exportSummaryBtn"),
+      printBtn: document.getElementById("printBtn"),
+      printView: document.getElementById("printView"),
     };
 
     let state = loadState();
     let editingId = null;
 
-    function todayKey() {
-      const d = new Date();
+    function dateKeyFromTs(ts) {
+      const d = new Date(ts);
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    function todayKey() {
+      return dateKeyFromTs(Date.now());
     }
 
     function loadState() {
@@ -391,6 +475,17 @@
 
     function formatTime(ts) {
       return new Date(ts).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    }
+
+    function formatHM(ts) {
+      const d = new Date(ts);
+      return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+
+    function formatEntryEnd(entry) {
+      const time = formatHM(entry.end);
+      const endDate = dateKeyFromTs(entry.end);
+      return endDate === dateKeyFromTs(entry.start) ? time : `${endDate} ${time}`;
     }
 
     function formatClock(d) {
@@ -606,6 +701,7 @@
       renderLog();
       renderTotals();
       renderStatus(Date.now());
+      updateExportScope();
     }
 
     function tick() {
@@ -619,6 +715,276 @@
       return String(str).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
     }
     function escapeAttr(str) { return escapeHtml(str); }
+
+    function filteredEntries() {
+      const from = els.exportFrom.value;
+      const to = els.exportTo.value;
+      return state.entries
+        .filter((entry) => {
+          const date = dateKeyFromTs(entry.start);
+          if (from && date < from) return false;
+          if (to && date > to) return false;
+          return true;
+        })
+        .sort((a, b) => a.start - b.start || String(a.id).localeCompare(String(b.id)));
+    }
+
+    function periodLabel() {
+      const from = els.exportFrom.value;
+      const to = els.exportTo.value;
+      if (from && to) return `${from} to ${to}`;
+      if (from) return `${from} onward`;
+      if (to) return `through ${to}`;
+      return "All entries";
+    }
+
+    function summaryModel(entries) {
+      const map = new Map();
+      entries.forEach((entry) => {
+        const cur = map.get(entry.code) || { tenths: 0, count: 0 };
+        cur.tenths += tenthsBetween(entry.start, entry.end);
+        cur.count += 1;
+        map.set(entry.code, cur);
+      });
+      const codes = [...map.keys()].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+      let grandTenths = 0;
+      let grandCount = 0;
+      const lines = codes.map((code) => {
+        const data = map.get(code);
+        grandTenths += data.tenths;
+        grandCount += data.count;
+        return { code, hours: (data.tenths / 10).toFixed(1), count: data.count };
+      });
+      return {
+        lines,
+        grand: { code: "Grand total", hours: (grandTenths / 10).toFixed(1), count: grandCount },
+      };
+    }
+
+    function csvEscape(value) {
+      const text = value == null ? "" : String(value);
+      if (/[",\r\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`;
+      return text;
+    }
+
+    function toCsv(rows) {
+      return rows.map((row) => row.map(csvEscape).join(",")).join("\r\n") + "\r\n";
+    }
+
+    function buildEntriesCsv(entries) {
+      const rows = [["Date", "Start", "End", "Charge Code", "Hours", "Notes"]];
+      entries.forEach((entry) => {
+        const tenths = tenthsBetween(entry.start, entry.end);
+        rows.push([
+          dateKeyFromTs(entry.start),
+          formatHM(entry.start),
+          formatEntryEnd(entry),
+          entry.code || "",
+          (tenths / 10).toFixed(1),
+          entry.notes || "",
+        ]);
+      });
+      return toCsv(rows);
+    }
+
+    function buildSummaryCsv(entries) {
+      const model = summaryModel(entries);
+      const rows = [["Charge Code", "Hours", "Entry Count"]];
+      model.lines.forEach((line) => rows.push([line.code, line.hours, String(line.count)]));
+      rows.push([model.grand.code, model.grand.hours, String(model.grand.count)]);
+      return toCsv(rows);
+    }
+
+    function legacyIosBlobDownload() {
+      const ua = navigator.userAgent || "";
+      const match = /OS (\d+)[._]/.exec(ua);
+      return /iP(ad|hone|od)/.test(ua) && !!match && Number(match[1]) < 13;
+    }
+
+    function downloadCsv(filename, csv) {
+      const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.rel = "noopener";
+      const supportsDownload = "download" in HTMLAnchorElement.prototype && !legacyIosBlobDownload();
+      if (supportsDownload) {
+        a.download = filename;
+        a.setAttribute("download", filename);
+      }
+      document.body.appendChild(a);
+
+      const release = () => {
+        a.remove();
+        URL.revokeObjectURL(url);
+      };
+      const clearFallback = () => {
+        const existing = document.getElementById("exportFallback");
+        if (!existing) return;
+        if (existing.dataset.url) URL.revokeObjectURL(existing.dataset.url);
+        existing.remove();
+      };
+      const showDownloadFallback = () => {
+        clearFallback();
+        const slot = document.createElement("div");
+        slot.id = "exportFallback";
+        slot.className = "export-fallback";
+        slot.dataset.url = url;
+        const lead = document.createElement("span");
+        lead.textContent = "Automatic download was blocked. Tap to save ";
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        link.target = "_blank";
+        link.rel = "noopener";
+        link.textContent = filename;
+        slot.append(lead, link, document.createTextNode("."));
+        els.exportHint.insertAdjacentElement("afterend", slot);
+        a.remove();
+      };
+      const openInstead = () => {
+        let popup = null;
+        try {
+          popup = window.open(url, "_blank");
+        } catch (err) {
+          popup = null;
+        }
+        if (popup) {
+          popup.opener = null;
+          window.setTimeout(release, 40000);
+          return;
+        }
+        showDownloadFallback();
+      };
+
+      if (!supportsDownload) {
+        openInstead();
+        return;
+      }
+      try {
+        a.click();
+      } catch (err) {
+        openInstead();
+        return;
+      }
+      const existing = document.getElementById("exportFallback");
+      if (existing) {
+        if (existing.dataset.url && existing.dataset.url !== url) URL.revokeObjectURL(existing.dataset.url);
+        existing.remove();
+      }
+      window.setTimeout(release, 40000);
+    }
+
+    function exportEntriesCsv() {
+      downloadCsv(`time-entries-${todayKey()}.csv`, buildEntriesCsv(filteredEntries()));
+    }
+
+    function exportSummaryCsv() {
+      downloadCsv(`time-summary-${todayKey()}.csv`, buildSummaryCsv(filteredEntries()));
+    }
+
+    function appendCells(tr, values, notesIndex) {
+      values.forEach((value, index) => {
+        const td = document.createElement("td");
+        td.textContent = value;
+        if (index === notesIndex) td.className = "notes";
+        tr.appendChild(td);
+      });
+    }
+
+    function makeTable(headers) {
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headRow = document.createElement("tr");
+      headers.forEach((text) => {
+        const th = document.createElement("th");
+        th.textContent = text;
+        headRow.appendChild(th);
+      });
+      thead.appendChild(headRow);
+      table.appendChild(thead);
+      const tbody = document.createElement("tbody");
+      table.appendChild(tbody);
+      return { table, tbody };
+    }
+
+    function renderPrint(entries) {
+      const root = els.printView;
+      root.innerHTML = "";
+
+      const title = document.createElement("h1");
+      title.textContent = "Time Tracker";
+      const period = document.createElement("p");
+      period.id = "printPeriod";
+      period.className = "print-period";
+      period.textContent = `Period: ${periodLabel()}`;
+
+      const sumHeading = document.createElement("h2");
+      sumHeading.textContent = "Summary by charge code";
+      const summary = makeTable(["Charge Code", "Hours", "Entry Count"]);
+      summary.table.id = "printSummary";
+      const model = summaryModel(entries);
+      model.lines.forEach((line) => {
+        const tr = document.createElement("tr");
+        appendCells(tr, [line.code, line.hours, String(line.count)]);
+        summary.tbody.appendChild(tr);
+      });
+      const total = document.createElement("tr");
+      total.className = "print-total";
+      appendCells(total, [model.grand.code, model.grand.hours, String(model.grand.count)]);
+      summary.tbody.appendChild(total);
+
+      const entHeading = document.createElement("h2");
+      entHeading.textContent = "Time entries";
+      const detail = makeTable(["Date", "Start", "End", "Charge Code", "Hours", "Notes"]);
+      detail.table.id = "printEntries";
+      if (!entries.length) {
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = 6;
+        td.textContent = "No entries in this period.";
+        tr.appendChild(td);
+        detail.tbody.appendChild(tr);
+      } else {
+        entries.forEach((entry) => {
+          const tr = document.createElement("tr");
+          const tenths = tenthsBetween(entry.start, entry.end);
+          appendCells(tr, [
+            dateKeyFromTs(entry.start),
+            formatHM(entry.start),
+            formatEntryEnd(entry),
+            entry.code || "",
+            (tenths / 10).toFixed(1),
+            entry.notes || "",
+          ], 5);
+          detail.tbody.appendChild(tr);
+        });
+      }
+
+      root.append(title, period, sumHeading, summary.table, entHeading, detail.table);
+    }
+
+    function updateExportScope() {
+      const from = els.exportFrom.value;
+      const to = els.exportTo.value;
+      const entries = filteredEntries();
+      const noun = entries.length === 1 ? "entry" : "entries";
+      if (from && to && from > to) {
+        els.exportHint.textContent = "From is after To, so no entries are included.";
+      } else if (!from && !to) {
+        els.exportHint.textContent = entries.length
+          ? `All ${entries.length} ${noun} will be exported.`
+          : "No entries to export.";
+      } else {
+        els.exportHint.textContent = `${entries.length} ${noun} in this range.`;
+      }
+      renderPrint(entries);
+    }
+
+    function printReport() {
+      updateExportScope();
+      window.print();
+    }
 
     function startBlock() {
       if (state.active || !state.codes.length) return;
@@ -684,6 +1050,13 @@
     els.stopBtn.addEventListener("click", stopBlock);
     els.addCodeBtn.addEventListener("click", addCode);
     els.newCode.addEventListener("keydown", (e) => { if (e.key === "Enter") addCode(); });
+    els.exportEntriesBtn.addEventListener("click", exportEntriesCsv);
+    els.exportSummaryBtn.addEventListener("click", exportSummaryCsv);
+    els.printBtn.addEventListener("click", printReport);
+    els.exportFrom.addEventListener("input", updateExportScope);
+    els.exportTo.addEventListener("input", updateExportScope);
+    els.exportFrom.addEventListener("change", updateExportScope);
+    els.exportTo.addEventListener("change", updateExportScope);
 
     render();
     tick();
